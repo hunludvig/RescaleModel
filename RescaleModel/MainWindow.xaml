@@ -1,0 +1,23 @@
+﻿<Window x:Class="RescaleModel.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rescale Model" Height="350" Width="525" Name="this">
+    <Grid AllowDrop="True" Drop="File_Drop">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <TextBox TextWrapping="Wrap" Text="{Binding ElementName=this, Path=SelectedFilePath}" Grid.Row="0" HorizontalContentAlignment="Left" VerticalContentAlignment="Center" />
+        <Button Content="Select File" Grid.Row="0" Grid.Column="1" Click="SelectFile_Click"/>
+        <Label Content="Scale" Grid.Row="1" Grid.Column="0" HorizontalContentAlignment="Right" VerticalContentAlignment="Center"/>
+        <TextBox Text="{Binding ElementName=this, Path=ScaleValue, TargetNullValue=''}" Grid.Row="1" Grid.Column="1" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" />
+        <ProgressBar Grid.Row="2" Grid.ColumnSpan="2" Value="{Binding ElementName=this, Path=Processed}" Maximum="{Binding ElementName=this, Path=Size}"/>
+        <Button Content="Start" Grid.Row="3" Grid.ColumnSpan="2" Click="StartProcess_Click"/>
+    </Grid>
+</Window>
