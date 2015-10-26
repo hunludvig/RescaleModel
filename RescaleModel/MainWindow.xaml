@@ -13,7 +13,7 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <TextBox TextWrapping="Wrap" Text="{Binding ElementName=this, Path=SelectedFilePath}" Grid.Row="0" HorizontalContentAlignment="Left" VerticalContentAlignment="Center" />
+        <TextBox TextWrapping="Wrap" Text="{Binding ElementName=this, Path=SelectedFile.FullName, Mode=OneWay}" Grid.Row="0" HorizontalContentAlignment="Left" VerticalContentAlignment="Center" />
         <Button Content="Select File" Grid.Row="0" Grid.Column="1" Click="SelectFile_Click"/>
         <Label Content="Scale" Grid.Row="1" Grid.Column="0" HorizontalContentAlignment="Right" VerticalContentAlignment="Center"/>
         <TextBox Text="{Binding ElementName=this, Path=ScaleValue, TargetNullValue=''}" Grid.Row="1" Grid.Column="1" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" />

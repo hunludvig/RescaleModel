@@ -15,6 +15,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
+using System.Windows.Threading;
 using System.Windows.Shapes;
 
 namespace RescaleModel
@@ -25,20 +26,27 @@ namespace RescaleModel
     public partial class MainWindow : Window
     {
 
-        public String SelectedFilePath
+        private DispatcherTimer UIUpdateTimer = new DispatcherTimer();
+
+        public FileInfo SelectedFile
         {
             get
             {
-                return this.GetValue(SelectedFilePathProperty) as string;
+                return this.GetValue(SelectedFileProperty) as FileInfo;
             }
             set
             {
-                this.SetValue(SelectedFilePathProperty, value);
+                if (value.Exists)
+                {
+                    Size = value.Length;
+                    processed = 0;
+                }
+                this.SetValue(SelectedFileProperty, value);
             }
         }
 
-        public static readonly DependencyProperty SelectedFilePathProperty =
-            DependencyProperty.Register("SelectedFilePath", typeof(string), typeof(MainWindow));
+        public static readonly DependencyProperty SelectedFileProperty =
+            DependencyProperty.Register("SelectedFile", typeof(FileInfo), typeof(MainWindow));
 
         public double? ScaleValue
         {
@@ -56,6 +64,8 @@ namespace RescaleModel
             DependencyProperty.Register("ScaleValue", typeof(double?), typeof(MainWindow),
             new FrameworkPropertyMetadata(1.0));
 
+        private long processed = 0;
+
         public long Processed
         {
             get
@@ -64,6 +74,7 @@ namespace RescaleModel
             }
             set
             {
+                processed = value;
                 this.SetValue(ProcessedProperty, value);
             }
         }
@@ -92,6 +103,12 @@ namespace RescaleModel
         public MainWindow()
         {
             InitializeComponent();
+            UIUpdateTimer.Tick += (o, i) =>
+            {
+                Processed = processed;
+            };
+            UIUpdateTimer.Interval = new TimeSpan(0, 0, 0, 0, 30);
+            UIUpdateTimer.Start();
         }
 
         private void File_Drop(object sender, DragEventArgs e)
@@ -101,7 +118,7 @@ namespace RescaleModel
                 string[] files = e.Data.GetData(DataFormats.FileDrop) as string[];
                 if (files != null && files.Length > 0)
                 {
-                    SelectedFilePath = files[0];
+                    SelectedFile = new FileInfo(files[0]);
                 }
             }
         }
@@ -123,27 +140,28 @@ namespace RescaleModel
             
             if (result == true)
             {
-                SelectedFilePath = dlg.FileName;
+                SelectedFile = new FileInfo(dlg.FileName);
             }
         }
 
         private void StartProcess_Click(object sender, RoutedEventArgs e)
         {
-            string path = SelectedFilePath;
-            
-            var fileInfo = new FileInfo(path);
-            if (fileInfo.Exists && ScaleValue.HasValue)
+            if (SelectedFile.Exists && ScaleValue.HasValue)
             {
+                string path = SelectedFile.FullName;
+                processed = 0;
+
                 double scale = ScaleValue.Value;
-                Size = new FileInfo(path).Length;
-                
-                if (fileInfo.Extension.Equals(".obj"))
+
+                if (SelectedFile.Extension.Equals(".obj"))
                 {
                     var t = Task.Factory.StartNew(() => ProcessObjFile(path, scale));
                 }
-                else if (fileInfo.Extension.Equals(".stl"))
-                { }
-                else if (fileInfo.Extension.Equals(".ply"))
+                else if (SelectedFile.Extension.Equals(".stl"))
+                {
+                    var t = Task.Factory.StartNew(() => ProcessStlBinaryFile(path, scale));
+                }
+                else if (SelectedFile.Extension.Equals(".ply"))
                 { }
             }
         }
@@ -160,7 +178,7 @@ namespace RescaleModel
                 .Select(line =>
                 {
                     long size = line.Length + 2;
-                    Dispatcher.Invoke(() => Processed += size);
+                    Interlocked.Add(ref processed, size);
                     var match = Regex.Match(line, vertexPattern);
                     if (match.Success)
                     {
@@ -189,6 +207,49 @@ namespace RescaleModel
                         return line;
                     }
                 }));
+            Dispatcher.Invoke(() => Processed = Size);
+        }
+
+        private void ProcessStlBinaryFile(string path, double scale)
+        {
+            const int STL_HEADER = 84;
+            const int FLOAT_LEN = 4;
+            const int STL_TRIANG = 12 * FLOAT_LEN + 2;
+            uint cursor = 0;
+
+            using (FileStream input = new FileStream(path, FileMode.Open, FileAccess.Read))
+            using (FileStream output = new FileStream(path.Substring(0, path.Length - 4) + "_scaled.stl", FileMode.Create))
+            using (BinaryWriter outputStream = new BinaryWriter(output))
+            {
+                byte[] buffer = new byte[100];
+                if (STL_HEADER != input.Read(buffer, 0, STL_HEADER))
+                    return;
+
+                outputStream.Write(buffer, 0, STL_HEADER);
+                Dispatcher.Invoke(() => Processed += STL_HEADER);
+
+                uint noOfTriangles = BitConverter.ToUInt32(buffer, STL_HEADER - 4);
+
+                while (input.CanRead) // && cursor < noOfTriangles)
+                {
+                    if (STL_TRIANG != input.Read(buffer, 0, STL_TRIANG))
+                        break;
+
+                    for (int i = 0; i < 12; i++)
+                    {
+                        int address = i * FLOAT_LEN;
+                        float value = BitConverter.ToSingle(buffer, address);
+                        value *= (float)scale;
+                        byte[] valueBytes = BitConverter.GetBytes(value);
+                        Array.Copy(valueBytes, 0, buffer, address, FLOAT_LEN);
+
+                    }
+
+                    outputStream.Write(buffer, 0, STL_TRIANG);
+                    cursor++;
+                    Interlocked.Add(ref processed, STL_TRIANG);
+                }
+            }
             Dispatcher.Invoke(() => Processed = Size);
         }
     }
